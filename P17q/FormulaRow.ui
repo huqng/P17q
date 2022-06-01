@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>FormulaRowUI</class>
+ <widget class="QWidget" name="FormulaRowUI">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>736</width>
+    <height>406</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,2,4,2,2">
+   <item>
+    <widget class="QLabel" name="lblIndex">
+     <property name="text">
+      <string>序号</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QComboBox" name="comboBoxType"/>
+   </item>
+   <item>
+    <widget class="QComboBox" name="comboReagent"/>
+   </item>
+   <item>
+    <widget class="QSpinBox" name="sbQuantity">
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="maximum">
+      <number>9999</number>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QSpinBox" name="sbTime">
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="maximum">
+      <number>9999</number>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
