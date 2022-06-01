@@ -160,7 +160,7 @@ private:
 
 	/* config */ 
 	MultiAxisCoord GetMultiAxisCoord(const string& strCoordName);
-	double GetCommonConfig(const string& strGroup, const string& strKey);
+	double GetCommonConfig(const string& strGroup, const string& strKey); /* read a double from `config.ini` */
 	int GetAxisNo(const string& strAxisName);
 
 	/* utils */

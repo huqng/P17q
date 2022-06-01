@@ -2172,7 +2172,8 @@ void CMachineControl::ImplPipet(int iStep, int iReactModIndex)
 		double dNeedleHeightFactor = 
 			GetCommonConfig(STR_SECTION_RESOLUTION, to_string(GetAxisNo(STR_AXIS_NDL))) 
 			/ GetCommonConfig(u8"加液", u8"试管横截面积");		// height per ul
-		double dPumpAxisFactor = GetCommonConfig(STR_SECTION_RESOLUTION, to_string(GetAxisNo(STR_AXIS_PIP))); // units/ul
+		double dPumpAxisFactor = GetCommonConfig(STR_SECTION_RESOLUTION, to_string(GetAxisNo(STR_AXIS_PIP))) // units/ul
+			* GetCommonConfig(u8"柱塞泵", u8"加液体积系数");
 		double dQuantity = s_iterReagentUsage->second.dQuantity;
 
 		WORD wAxes[2] = { stoi(iniCfg[STR_SECTION_AXIS][STR_AXIS_NDL]), stoi(iniCfg[STR_SECTION_AXIS][STR_AXIS_PIP]) };
@@ -2259,7 +2260,8 @@ void CMachineControl::ImplPipet(int iStep, int iReactModIndex)
 	{
 		/* 加液 */
 		double dXAxisFactor = GetCommonConfig(STR_SECTION_RESOLUTION, to_string(GetAxisNo(STR_AXIS_X)));
-		double dPumpAxisFactor = GetCommonConfig(STR_SECTION_RESOLUTION, to_string(GetAxisNo(STR_AXIS_PIP)));
+		double dPumpAxisFactor = GetCommonConfig(STR_SECTION_RESOLUTION, to_string(GetAxisNo(STR_AXIS_PIP)))
+			* GetCommonConfig(u8"柱塞泵", u8"加液体积系数");
 		double dQuantity = s_iterReagentUsage->second.dQuantity;
 
 		WORD wAxes[2] = { GetAxisNo(STR_AXIS_X), GetAxisNo(STR_AXIS_PIP) };
@@ -3037,6 +3039,8 @@ void CMachineControl::SetElectroMagnet(bool bOn)
 {
 	int iBitNo = stoi(iniIO[u8"运动控制卡通用输出"][u8"电磁铁"]);
 	m_motion.WriteOutBit(0, iBitNo, !bOn);
+	if(bOn)
+		Sleep(100);
 }
 
 void CMachineControl::SetNeedleCleanerPumpOn(bool bOn)
