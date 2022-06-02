@@ -16,7 +16,7 @@ long long int GetProgramTime()
 #define CHECK_MOTION_TIMEOUT 
 
 CMachineControl::CMachineControl() :
-	m_tp(8),
+	m_tp(2),
 	m_state(RunState::Stopped),
 	m_mapReactionState({ { 1,ReactionState::New }, { 2,ReactionState::New } }),
 	m_pMtxSerial(new mutex),
@@ -58,15 +58,7 @@ CMachineControl::CMachineControl() :
 
 CMachineControl::~CMachineControl()
 {
-	unique_lock<mutex> lk(m_mtxState);
-
-	m_state = RunState::Exiting;
-	m_condRunning.notify_all(); /* for those who are waiting on `condRunning' */
-
-	lk.unlock();
-	m_tp.wait();
-
-	if (m_repairMod != nullptr && stoi(iniCfg[u8"模块"][u8"有修复模块"]) == 1)
+	if (m_repairMod != nullptr)
 	{
 		m_repairMod->WriteRelayReset();
 		delete m_repairMod;
@@ -166,8 +158,10 @@ void CMachineControl::Resume()
 	}
 }
 
-void CMachineControl::Exit()
+void CMachineControl::Exit() /* should be called in ~GUI */
 {
+	emit signalMsg(QString::fromUtf8(u8"正在退出"));
+
 	unique_lock<mutex> lk(m_mtxState);
 
 	m_state = RunState::Exiting;
@@ -175,7 +169,11 @@ void CMachineControl::Exit()
 	
 	lk.unlock();	
 
-	m_tp.wait();
+	m_tp.stop();
+	///m_tp.wait();
+	emit signalMsg(QString::fromUtf8(u8"所有线程结束"));
+
+	/* then ~Control */
 }
 
 bool CMachineControl::IsRunning()
@@ -739,6 +737,8 @@ void CMachineControl::ImplCheckReactionModule(int iIndex, int iStep)
 	if (!CheckRunState())
 		return;
 
+	unique_lock<mutex> lk(m_mtxReaction);
+
 	switch (iStep)
 	{
 	case 0:
@@ -774,21 +774,11 @@ void CMachineControl::ImplCheckReactionModule(int iIndex, int iStep)
 
 				m_mapReactionState[iIndex] = ReactionState::New;
 			}
-			else
-			{
-				Sleep(20);
-			}
-		}
-		else
-		{
-			Sleep(20);
 		}
 		break;
 	}
 	case 2:
 	{
-		lock_guard<mutex> lk(m_mtxReaction);
-
 		if (!m_mapReactMods[iIndex]->Reacting())
 		{
 			/* all steps finished */
@@ -827,11 +817,11 @@ void CMachineControl::ImplCheckReactionModule(int iIndex, int iStep)
 	}
 	
 	default:
-		Sleep(20);
 		iStep = -1;
 		break;
 	}
-
+	lk.unlock();
+	Sleep(20);
 	boost::asio::post(m_tp, bind(&CMachineControl::ImplCheckReactionModule, this, iIndex, iStep >= 0 ? iStep : 0)); /* run forever */
 }
 
@@ -1777,9 +1767,9 @@ void CMachineControl::ImplPutToReaction(int iStep)
 
 		unique_lock<mutex> lk(m_mtxShelf);
 		m_mapReactMods[s_iReactModIndex]->PutShelf(m_transit->Put());
-		emit signalMsg(QString::fromUtf8(u8"反应模块%1放架完成").arg(s_iReactModIndex));
 		lk.unlock();
 
+		emit signalMsg(QString::fromUtf8(u8"反应模块%1放架完成").arg(s_iReactModIndex));
 		emit signalUpdateReactionModuleView(s_iReactModIndex);
 		emit signalUpdateTransitShelfView();
 		boost::asio::post(m_tp, bind(&CMachineControl::Dispatch, this));
@@ -3195,7 +3185,6 @@ void CMachineControl::Dispatch()
 	if (!m_qReactionQueue.empty())
 	{
 		int iReactModIndex = m_qReactionQueue.front();
-		emit signalMsg(QString::fromUtf8(u8"反应模块%1准备加液").arg(iReactModIndex));
 		m_qReactionQueue.pop();
 		boost::asio::post(m_tp, bind(&CMachineControl::ImplPipet, this, 0, iReactModIndex));
 		return;
