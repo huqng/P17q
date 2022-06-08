@@ -1930,12 +1930,13 @@ void CMachineControl::ImplPipet(int iStep, int iReactModIndex)
 	struct ReagentUsage
 	{
 		string strReagent;
-		double dTime;
-		double dQuantity;
+		int iTime;
+		int iQuantity;
 	};
 	static map<int, ReagentUsage> s_mapReagentUsage;
 	static map<int, ReagentUsage>::iterator s_iterReagentUsage;
 	static int s_iReagentPos;
+	static int s_iRestReagentQuantityInPump = 0;
 	/* 
 		(add one reagent one step)
 		for each reagent
@@ -1965,8 +1966,8 @@ void CMachineControl::ImplPipet(int iStep, int iReactModIndex)
 					FormulaStep step = formulaInfo.GetFormulaStep(strFormulaName, iCurReactStep);
 
 					ReagentUsage usage;
-					usage.dQuantity = step.quantity;
-					usage.dTime = step.reactionTime;
+					usage.iQuantity = step.quantity;
+					usage.iTime = step.reactionTime;
 
 					if (step.type == OPTYPE_CREAGENT)
 					{
@@ -2025,7 +2026,7 @@ void CMachineControl::ImplPipet(int iStep, int iReactModIndex)
 		}
 		else
 		{
-			double dQuantity = s_iterReagentUsage->second.dQuantity;
+			//double dQuantity = s_iterReagentUsage->second.iQuantity;
 			s_iReagentPos = rmgr.GetReagentPosition(strReagentName);
 			if (s_iReagentPos > 0)
 			{
@@ -2086,6 +2087,7 @@ void CMachineControl::ImplPipet(int iStep, int iReactModIndex)
 			iStep = 1005008;
 			break;
 
+			/* not used */
 			int iNeedleAxisNo = GetAxisNo(STR_AXIS_NDL);
 			double dReso = GetCommonConfig(STR_SECTION_RESOLUTION, to_string(iNeedleAxisNo));
 			double dAttemptBeginHeight = (m_mapLatestReagentSurfaceAltitude.find(s_iReagentPos) != m_mapLatestReagentSurfaceAltitude.end()) ? (m_mapLatestReagentSurfaceAltitude[s_iReagentPos] - 15 * dReso) : (GetMultiAxisCoord(u8"试剂架试剂高度上界").at(iNeedleAxisNo) - 5 * dReso);
@@ -2159,15 +2161,23 @@ void CMachineControl::ImplPipet(int iStep, int iReactModIndex)
 	}
 	case 6:
 	{
-		double dNeedleHeightFactor = 
+		double dNeedleHeightFactor = 0 * 
 			GetCommonConfig(STR_SECTION_RESOLUTION, to_string(GetAxisNo(STR_AXIS_NDL))) 
 			/ GetCommonConfig(u8"加液", u8"试管横截面积");		// height per ul
 		double dPumpAxisFactor = GetCommonConfig(STR_SECTION_RESOLUTION, to_string(GetAxisNo(STR_AXIS_PIP))) // units/ul
 			* GetCommonConfig(u8"柱塞泵", u8"加液体积系数");
-		double dQuantity = s_iterReagentUsage->second.dQuantity;
+		auto iterTemp = s_iterReagentUsage;
+		const double dMaxSuckQuantity = GetCommonConfig(u8"加液", u8"最大抽液量");
+		while (iterTemp != s_mapReagentUsage.end()
+			&& (iterTemp->second.strReagent == s_iterReagentUsage->second.strReagent)
+			&& (s_iRestReagentQuantityInPump + iterTemp->second.iQuantity <= dMaxSuckQuantity))
+		{
+			s_iRestReagentQuantityInPump += iterTemp->second.iQuantity;
+			++iterTemp;
+		}
 
 		WORD wAxes[2] = { stoi(iniCfg[STR_SECTION_AXIS][STR_AXIS_NDL]), stoi(iniCfg[STR_SECTION_AXIS][STR_AXIS_PIP]) };
-		double dDist[2] = { dQuantity * dNeedleHeightFactor, dQuantity * dPumpAxisFactor };
+		double dDist[2] = { s_iRestReagentQuantityInPump * dNeedleHeightFactor, s_iRestReagentQuantityInPump * dPumpAxisFactor };
 		if (m_motion.LineMulticoor(0, 1, 2, wAxes, dDist, 0) == 0)
 		{
 			iStep = 7;
@@ -2176,7 +2186,6 @@ void CMachineControl::ImplPipet(int iStep, int iReactModIndex)
 		double dPos = -1;
 		m_motion.GetPosition(0, stoi(iniCfg[STR_SECTION_AXIS][STR_AXIS_NDL]), dPos);
 		m_mapLatestReagentSurfaceAltitude[s_iReagentPos] = dPos;
-		emit signalMsg(QString::fromUtf8(u8"反应模块%1加液：%2ul试剂【%3】").arg(iReactModIndex).arg(dQuantity).arg(QString::fromUtf8(s_iterReagentUsage->second.strReagent)));
 		break;
 	}
 	case 7:
@@ -2252,19 +2261,23 @@ void CMachineControl::ImplPipet(int iStep, int iReactModIndex)
 		double dXAxisFactor = GetCommonConfig(STR_SECTION_RESOLUTION, to_string(GetAxisNo(STR_AXIS_X)));
 		double dPumpAxisFactor = GetCommonConfig(STR_SECTION_RESOLUTION, to_string(GetAxisNo(STR_AXIS_PIP)))
 			* GetCommonConfig(u8"柱塞泵", u8"加液体积系数");
-		double dQuantity = s_iterReagentUsage->second.dQuantity;
+		double dQuantity = s_iterReagentUsage->second.iQuantity;
 
 		WORD wAxes[2] = { GetAxisNo(STR_AXIS_X), GetAxisNo(STR_AXIS_PIP) };
 		double dDist[2] = { 0 * 20.0 * dXAxisFactor, -(dQuantity * dPumpAxisFactor) }; /* needn't move x-axis */
 		if (m_motion.LineMulticoor(0, 1, 2, wAxes, dDist, 0) == 0)
 		{
-			emit signalMsg(QString::fromUtf8(u8"反应模块%1加液：玻片%2").arg(iReactModIndex).arg(s_iterReagentUsage->first));
+			emit signalMsg(QString::fromUtf8(u8"反应模块%1加液：%2ul试剂【%3】玻片%4")
+				.arg(iReactModIndex)
+				.arg(s_iterReagentUsage->second.iQuantity)
+				.arg(QString::fromUtf8(s_iterReagentUsage->second.strReagent))
+				.arg(s_iterReagentUsage->first));
+
 			iStep = 1013001;
 			s_llStartTime = GetProgramTime();
 		}
 		break;
 	}
-
 	case 1013001:
 	{
 		/* 加液 */
@@ -2278,15 +2291,15 @@ void CMachineControl::ImplPipet(int iStep, int iReactModIndex)
 		}
 		break;
 	}
-
 	case 14:
 	{
+		s_iRestReagentQuantityInPump -= s_iterReagentUsage->second.iQuantity;
 		iStep = 1014001;
 		break;
 	}
 	case 1014001:
 	{
-		if (m_mapReactMods[iReactModIndex]->WriteDTReactionTime(s_iterReagentUsage->first, s_iterReagentUsage->second.dTime) == 0) /* 写反应时间 */
+		if (m_mapReactMods[iReactModIndex]->WriteDTReactionTime(s_iterReagentUsage->first, s_iterReagentUsage->second.iTime) == 0) /* 写反应时间 */
 		{
 			iStep = 1014002;
 		}
@@ -2308,13 +2321,34 @@ void CMachineControl::ImplPipet(int iStep, int iReactModIndex)
 		/* if same reagent as previous step, skip cleaning */
 		if (nextIter != s_mapReagentUsage.end() && nextIter->second.strReagent == s_iterReagentUsage->second.strReagent)
 		{
-			iNextStep = 24;
+			iNextStep = 1015001;
 		}
 		function<void()> nextStep = bind(&CMachineControl::ImplPipet, this, iNextStep, iReactModIndex);
 		boost::asio::post(m_tp, bind(&CMachineControl::SubFlowZAxesUp, this, nextStep, 0));
 		iStep = -1;
 		break;
 	}
+	case 1015001:
+	{
+		if (s_iRestReagentQuantityInPump <= 0)
+		{
+			iStep = 16;
+			break;
+		}
+		else
+		{
+			++s_iterReagentUsage;
+			iStep = 9;
+			break;
+		}
+
+		/* s_dRestReagentInPump */
+		/* if s_dRestReagentInPump <= 0 */
+		/*     goto 2 to re-suck */
+		/* else  */
+		/*     ++s_iter */
+		/*     got 9 to add reagent */
+	} 
 	case 16: /* 到清洗位置 */
 	{
 		if (m_motion.MultiAxisMoveSimple(GetMultiAxisCoord(STR_REACT_CLEAN_POS(iReactModIndex))) == 0)
@@ -2395,7 +2429,7 @@ void CMachineControl::ImplPipet(int iStep, int iReactModIndex)
 		}
 		break;
 	}
-	case 22:
+	case 22: /* 清洗后复位 */
 	{
 		function<void()> nextStep = bind(&CMachineControl::ImplPipet, this, 23, iReactModIndex);
 		boost::asio::post(m_tp, bind(&CMachineControl::SubFlowZAxesUp, this, nextStep, 0));
@@ -2418,7 +2452,6 @@ void CMachineControl::ImplPipet(int iStep, int iReactModIndex)
 	}
 	case 24: /* end of a cycle, loop or break */
 	{
-		/* iterator has been updated */
 		++s_iterReagentUsage;
 		if (s_iterReagentUsage == s_mapReagentUsage.end())
 		{
