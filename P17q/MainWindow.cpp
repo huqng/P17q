@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 
+#include <qevent.h>
 #include <qdialog.h>
 #include <qmessagebox.h>
 #include <qfiledialog.h>
@@ -43,7 +44,6 @@ MainWindow::MainWindow(QWidget *parent)
 	connect(ui.btnReload2, &QPushButton::clicked, this, &MainWindow::onBtnReload2Clicked);
 	connect(ui.btnReload3, &QPushButton::clicked, this, &MainWindow::onBtnReload3Clicked);
 	connect(ui.btnReload4, &QPushButton::clicked, this, &MainWindow::onBtnReload4Clicked);
-	connect(ui.btnResetReagentAltitude, &QPushButton::clicked, this, &MainWindow::onBtnResetReagentAltitudeClicked);
 	connect(ui.btnClearMsg, &QPushButton::clicked, this, &MainWindow::onBtnClearMsgClicked);
 	/* product info */
 	dynamic_cast<QLabel*>(ui.SlideShelf1->layout()->itemAt(0)->widget())->setText(U8_TO_QSTR(u8"玻片架1"));
@@ -147,6 +147,19 @@ MainWindow::~MainWindow()
 	m_pControl->Exit();
 }
 
+void MainWindow::closeEvent(QCloseEvent* evnt)
+{
+	int iRet = QMessageBox::question(nullptr, U8_TO_QSTR(u8"P17+"), U8_TO_QSTR(u8"关闭软件？"));
+	if (iRet == QMessageBox::Yes)
+	{
+		evnt->accept();
+	}
+	else
+	{
+		evnt->ignore();
+	}
+}
+
 void MainWindow::onBtnResetClicked()
 {
 	m_pControl->Reset();
@@ -228,11 +241,6 @@ void MainWindow::onBtnReload4Clicked()
 {
 	MachineReloadShelf(4);
 	slotUpdateShelfHolderView(4);
-}
-
-void MainWindow::onBtnResetReagentAltitudeClicked()
-{
-	m_pControl->ClearReagentSurfaceAltitudeRecord(ui.sbSelectedReagentPos->value());
 }
 
 void MainWindow::onBtnClearMsgClicked()

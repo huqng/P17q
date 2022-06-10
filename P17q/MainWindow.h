@@ -5,6 +5,8 @@
 
 #include "../MachineControlQt/IMachineControl.h"
 
+class QCloseEvent;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -12,6 +14,8 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = Q_NULLPTR);
     ~MainWindow();
+protected:
+    virtual void closeEvent(QCloseEvent* evnt)override;
 
 private:
     Ui::MainWindowClass ui;
@@ -27,7 +31,6 @@ public slots:
     void onBtnReload2Clicked();
     void onBtnReload3Clicked();
     void onBtnReload4Clicked();
-    void onBtnResetReagentAltitudeClicked();
     void onBtnClearMsgClicked();
 
     /* machine control */
